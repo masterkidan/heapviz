@@ -16,6 +16,7 @@ export interface FilterState {
     edgesCount: number;
     retainersCount: number;
     type: string;
+    distance: number;
     [key: string]: string|number;
 }
 
@@ -23,6 +24,7 @@ export const initialFilters: FilterState = {
     retainedSize: 100,
     selfSize: 100,
     edgesCount: 0,
+    distance: -1,
     retainersCount: 0,
     type: 'all'
 }
