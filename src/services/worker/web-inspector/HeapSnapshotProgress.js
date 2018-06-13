@@ -30,7 +30,7 @@
 import { WebInspector } from './index';
 WebInspector.HeapSnapshotProgress = class {
   /**
-   * @param {!WebInspector.HeapSnapshotWorkerDispatcher=} dispatcher
+   * @param {!HeapSnapshotWorker.HeapSnapshotWorkerDispatcher=} dispatcher
    */
   constructor(dispatcher) {
     this._dispatcher = dispatcher;
@@ -40,7 +40,7 @@ WebInspector.HeapSnapshotProgress = class {
    * @param {string} status
    */
   updateStatus(status) {
-    this._sendUpdateEvent(WebInspector.UIString(status));
+    this._sendUpdateEvent(Common.UIString(status));
   }
 
   /**
@@ -49,8 +49,8 @@ WebInspector.HeapSnapshotProgress = class {
    * @param {number} total
    */
   updateProgress(title, value, total) {
-    var percentValue = ((total ? (value / total) : 0) * 100).toFixed(0);
-    this._sendUpdateEvent(WebInspector.UIString(title, percentValue));
+    const percentValue = ((total ? (value / total) : 0) * 100).toFixed(0);
+    this._sendUpdateEvent(Common.UIString(title, percentValue));
   }
 
   /**
@@ -59,7 +59,7 @@ WebInspector.HeapSnapshotProgress = class {
   reportProblem(error) {
     // May be undefined in tests.
     if (this._dispatcher)
-      this._dispatcher.sendEvent(WebInspector.HeapSnapshotProgressEvent.BrokenSnapshot, error);
+      this._dispatcher.sendEvent(HeapSnapshotModel.HeapSnapshotProgressEvent.BrokenSnapshot, error);
   }
 
   /**
@@ -68,6 +68,6 @@ WebInspector.HeapSnapshotProgress = class {
   _sendUpdateEvent(text) {
     // May be undefined in tests.
     if (this._dispatcher)
-      this._dispatcher.sendEvent(WebInspector.HeapSnapshotProgressEvent.Update, text);
+      this._dispatcher.sendEvent(HeapSnapshotModel.HeapSnapshotProgressEvent.Update, text);
   }
 };

@@ -14,7 +14,7 @@ class Node {
         return {
             v: this.retainedSize,
             i: this.id,
-            d: this.itemIndex,
+            d: this.distance,
             s: this.selfSize,
             t: this.type
         };

@@ -44,8 +44,8 @@ WebInspector.JSHeapSnapshot = class extends WebInspector.HeapSnapshot {
       detachedDOMTreeNode: 2,
       pageObject: 4  // The idea is to track separately the objects owned by the page and the objects owned by debugger.
     };
-    this.initialize();
     this._lazyStringCache = {};
+    this.initialize();
   }
 
   /**
@@ -77,26 +77,6 @@ WebInspector.JSHeapSnapshot = class extends WebInspector.HeapSnapshot {
 
   /**
    * @override
-   * @return {?function(!WebInspector.HeapSnapshotNode):boolean}
-   */
-  classNodesFilter() {
-    var mapAndFlag = this.userObjectsMapAndFlag();
-    if (!mapAndFlag)
-      return null;
-    var map = mapAndFlag.map;
-    var flag = mapAndFlag.flag;
-    /**
-     * @param {!WebInspector.HeapSnapshotNode} node
-     * @return {boolean}
-     */
-    function filter(node) {
-      return !!(map[node.ordinal()] & flag);
-    }
-    return filter;
-  }
-
-  /**
-   * @override
    * @return {function(!WebInspector.HeapSnapshotEdge):boolean}
    */
   containmentEdgesFilter() {
@@ -108,7 +88,7 @@ WebInspector.JSHeapSnapshot = class extends WebInspector.HeapSnapshot {
    * @return {function(!WebInspector.HeapSnapshotEdge):boolean}
    */
   retainingEdgesFilter() {
-    var containmentEdgesFilter = this.containmentEdgesFilter();
+    const containmentEdgesFilter = this.containmentEdgesFilter();
     function filter(edge) {
       return containmentEdgesFilter(edge) && !edge.node().isRoot() && !edge.isWeak();
     }
@@ -153,7 +133,7 @@ WebInspector.JSHeapSnapshot = class extends WebInspector.HeapSnapshot {
         // For more details see http://crbug.com/413608
         if (node.rawName() !== '(map descriptors)')
           return true;
-        var index = edge.name();
+        const index = edge.name();
         return index < 2 || (index % 3) !== 1;
       }
       return true;
@@ -183,44 +163,44 @@ WebInspector.JSHeapSnapshot = class extends WebInspector.HeapSnapshot {
      * @return {?WebInspector.HeapSnapshotNode}
      */
     function getChildNodeByName(node, name) {
-      for (var iter = node.edges(); iter.hasNext(); iter.next()) {
-        var child = iter.edge.node();
+      for (let iter = node.edges(); iter.hasNext(); iter.next()) {
+        const child = iter.edge.node();
         if (child.name() === name)
           return child;
       }
       return null;
     }
 
-    var visitedNodes = {};
+    const visitedNodes = {};
     /**
      * @param {!WebInspector.HeapSnapshotNode} node
      */
     function doAction(node) {
-      var ordinal = node.ordinal();
+      const ordinal = node.ordinal();
       if (!visitedNodes[ordinal]) {
         action(node);
         visitedNodes[ordinal] = true;
       }
     }
 
-    var gcRoots = getChildNodeByName(this.rootNode(), '(GC roots)');
+    const gcRoots = getChildNodeByName(this.rootNode(), '(GC roots)');
     if (!gcRoots)
       return;
 
     if (userRootsOnly) {
-      for (var iter = this.rootNode().edges(); iter.hasNext(); iter.next()) {
-        var node = iter.edge.node();
+      for (let iter = this.rootNode().edges(); iter.hasNext(); iter.next()) {
+        const node = iter.edge.node();
         if (this.isUserRoot(node))
           doAction(node);
       }
     } else {
-      for (var iter = gcRoots.edges(); iter.hasNext(); iter.next()) {
-        var subRoot = iter.edge.node();
-        for (var iter2 = subRoot.edges(); iter2.hasNext(); iter2.next())
+      for (let iter = gcRoots.edges(); iter.hasNext(); iter.next()) {
+        const subRoot = iter.edge.node();
+        for (let iter2 = subRoot.edges(); iter2.hasNext(); iter2.next())
           doAction(iter2.edge.node());
         doAction(subRoot);
       }
-      for (var iter = this.rootNode().edges(); iter.hasNext(); iter.next())
+      for (let iter = this.rootNode().edges(); iter.hasNext(); iter.next())
         doAction(iter.edge.node());
     }
   }
@@ -242,26 +222,20 @@ WebInspector.JSHeapSnapshot = class extends WebInspector.HeapSnapshot {
   }
 
   _markDetachedDOMTreeNodes() {
-    var flag = this._nodeFlags.detachedDOMTreeNode;
-    var detachedDOMTreesRoot;
-    for (var iter = this.rootNode().edges(); iter.hasNext(); iter.next()) {
-      var node = iter.edge.node();
-      if (node.name() === '(Detached DOM trees)') {
-        detachedDOMTreesRoot = node;
-        break;
-      }
-    }
-
-    if (!detachedDOMTreesRoot)
-      return;
-
-    var detachedDOMTreeRE = /^Detached DOM tree/;
-    for (var iter = detachedDOMTreesRoot.edges(); iter.hasNext(); iter.next()) {
-      var node = iter.edge.node();
-      if (detachedDOMTreeRE.test(node.className())) {
-        for (var edgesIter = node.edges(); edgesIter.hasNext(); edgesIter.next())
-          this._flags[edgesIter.edge.node().nodeIndex / this._nodeFieldCount] |= flag;
-      }
+    const nodes = this.nodes;
+    const nodesLength = nodes.length;
+    const nodeFieldCount = this._nodeFieldCount;
+    const nodeNativeType = this._nodeNativeType;
+    const nodeTypeOffset = this._nodeTypeOffset;
+    const flag = this._nodeFlags.detachedDOMTreeNode;
+    const node = this.rootNode();
+    for (let nodeIndex = 0, ordinal = 0; nodeIndex < nodesLength; nodeIndex += nodeFieldCount, ordinal++) {
+      const nodeType = nodes[nodeIndex + nodeTypeOffset];
+      if (nodeType !== nodeNativeType)
+        continue;
+      node.nodeIndex = nodeIndex;
+      if (node.name().startsWith('Detached '))
+        this._flags[ordinal] |= flag;
     }
   }
 
@@ -269,39 +243,39 @@ WebInspector.JSHeapSnapshot = class extends WebInspector.HeapSnapshot {
     // Allow runtime properties query for objects accessible from Window objects
     // via regular properties, and for DOM wrappers. Trying to access random objects
     // can cause a crash due to insonsistent state of internal properties of wrappers.
-    var flag = this._nodeFlags.canBeQueried;
-    var hiddenEdgeType = this._edgeHiddenType;
-    var internalEdgeType = this._edgeInternalType;
-    var invisibleEdgeType = this._edgeInvisibleType;
-    var weakEdgeType = this._edgeWeakType;
-    var edgeToNodeOffset = this._edgeToNodeOffset;
-    var edgeTypeOffset = this._edgeTypeOffset;
-    var edgeFieldsCount = this._edgeFieldsCount;
-    var containmentEdges = this.containmentEdges;
-    var nodeFieldCount = this._nodeFieldCount;
-    var firstEdgeIndexes = this._firstEdgeIndexes;
+    const flag = this._nodeFlags.canBeQueried;
+    const hiddenEdgeType = this._edgeHiddenType;
+    const internalEdgeType = this._edgeInternalType;
+    const invisibleEdgeType = this._edgeInvisibleType;
+    const weakEdgeType = this._edgeWeakType;
+    const edgeToNodeOffset = this._edgeToNodeOffset;
+    const edgeTypeOffset = this._edgeTypeOffset;
+    const edgeFieldsCount = this._edgeFieldsCount;
+    const containmentEdges = this.containmentEdges;
+    const nodeFieldCount = this._nodeFieldCount;
+    const firstEdgeIndexes = this._firstEdgeIndexes;
 
-    var flags = this._flags;
-    var list = [];
+    const flags = this._flags;
+    const list = [];
 
-    for (var iter = this.rootNode().edges(); iter.hasNext(); iter.next()) {
+    for (let iter = this.rootNode().edges(); iter.hasNext(); iter.next()) {
       if (iter.edge.node().isUserRoot())
         list.push(iter.edge.node().nodeIndex / nodeFieldCount);
     }
 
     while (list.length) {
-      var nodeOrdinal = list.pop();
+      const nodeOrdinal = list.pop();
       if (flags[nodeOrdinal] & flag)
         continue;
       flags[nodeOrdinal] |= flag;
-      var beginEdgeIndex = firstEdgeIndexes[nodeOrdinal];
-      var endEdgeIndex = firstEdgeIndexes[nodeOrdinal + 1];
-      for (var edgeIndex = beginEdgeIndex; edgeIndex < endEdgeIndex; edgeIndex += edgeFieldsCount) {
-        var childNodeIndex = containmentEdges[edgeIndex + edgeToNodeOffset];
-        var childNodeOrdinal = childNodeIndex / nodeFieldCount;
+      const beginEdgeIndex = firstEdgeIndexes[nodeOrdinal];
+      const endEdgeIndex = firstEdgeIndexes[nodeOrdinal + 1];
+      for (let edgeIndex = beginEdgeIndex; edgeIndex < endEdgeIndex; edgeIndex += edgeFieldsCount) {
+        const childNodeIndex = containmentEdges[edgeIndex + edgeToNodeOffset];
+        const childNodeOrdinal = childNodeIndex / nodeFieldCount;
         if (flags[childNodeOrdinal] & flag)
           continue;
-        var type = containmentEdges[edgeIndex + edgeTypeOffset];
+        const type = containmentEdges[edgeIndex + edgeTypeOffset];
         if (type === hiddenEdgeType || type === invisibleEdgeType || type === internalEdgeType || type === weakEdgeType)
           continue;
         list.push(childNodeOrdinal);
@@ -310,53 +284,54 @@ WebInspector.JSHeapSnapshot = class extends WebInspector.HeapSnapshot {
   }
 
   _markPageOwnedNodes() {
-    var edgeShortcutType = this._edgeShortcutType;
-    var edgeElementType = this._edgeElementType;
-    var edgeToNodeOffset = this._edgeToNodeOffset;
-    var edgeTypeOffset = this._edgeTypeOffset;
-    var edgeFieldsCount = this._edgeFieldsCount;
-    var edgeWeakType = this._edgeWeakType;
-    var firstEdgeIndexes = this._firstEdgeIndexes;
-    var containmentEdges = this.containmentEdges;
-    var nodeFieldCount = this._nodeFieldCount;
-    var nodesCount = this.nodeCount;
+    const edgeShortcutType = this._edgeShortcutType;
+    const edgeElementType = this._edgeElementType;
+    const edgeToNodeOffset = this._edgeToNodeOffset;
+    const edgeTypeOffset = this._edgeTypeOffset;
+    const edgeFieldsCount = this._edgeFieldsCount;
+    const edgeWeakType = this._edgeWeakType;
+    const firstEdgeIndexes = this._firstEdgeIndexes;
+    const containmentEdges = this.containmentEdges;
+    const nodeFieldCount = this._nodeFieldCount;
+    const nodesCount = this.nodeCount;
 
-    var flags = this._flags;
-    var pageObjectFlag = this._nodeFlags.pageObject;
+    const flags = this._flags;
+    const pageObjectFlag = this._nodeFlags.pageObject;
 
-    var nodesToVisit = new Uint32Array(nodesCount);
-    var nodesToVisitLength = 0;
+    const nodesToVisit = new Uint32Array(nodesCount);
+    let nodesToVisitLength = 0;
 
-    var rootNodeOrdinal = this._rootNodeIndex / nodeFieldCount;
-    var node = this.rootNode();
+    const rootNodeOrdinal = this._rootNodeIndex / nodeFieldCount;
+    const node = this.rootNode();
 
     // Populate the entry points. They are Window objects and DOM Tree Roots.
-    for (var edgeIndex = firstEdgeIndexes[rootNodeOrdinal], endEdgeIndex = firstEdgeIndexes[rootNodeOrdinal + 1];
+    for (let edgeIndex = firstEdgeIndexes[rootNodeOrdinal], endEdgeIndex = firstEdgeIndexes[rootNodeOrdinal + 1];
          edgeIndex < endEdgeIndex; edgeIndex += edgeFieldsCount) {
-      var edgeType = containmentEdges[edgeIndex + edgeTypeOffset];
-      var nodeIndex = containmentEdges[edgeIndex + edgeToNodeOffset];
+      const edgeType = containmentEdges[edgeIndex + edgeTypeOffset];
+      const nodeIndex = containmentEdges[edgeIndex + edgeToNodeOffset];
       if (edgeType === edgeElementType) {
         node.nodeIndex = nodeIndex;
         if (!node.isDocumentDOMTreesRoot())
           continue;
-      } else if (edgeType !== edgeShortcutType)
+      } else if (edgeType !== edgeShortcutType) {
         continue;
-      var nodeOrdinal = nodeIndex / nodeFieldCount;
+      }
+      const nodeOrdinal = nodeIndex / nodeFieldCount;
       nodesToVisit[nodesToVisitLength++] = nodeOrdinal;
       flags[nodeOrdinal] |= pageObjectFlag;
     }
 
     // Mark everything reachable with the pageObject flag.
     while (nodesToVisitLength) {
-      var nodeOrdinal = nodesToVisit[--nodesToVisitLength];
-      var beginEdgeIndex = firstEdgeIndexes[nodeOrdinal];
-      var endEdgeIndex = firstEdgeIndexes[nodeOrdinal + 1];
-      for (var edgeIndex = beginEdgeIndex; edgeIndex < endEdgeIndex; edgeIndex += edgeFieldsCount) {
-        var childNodeIndex = containmentEdges[edgeIndex + edgeToNodeOffset];
-        var childNodeOrdinal = childNodeIndex / nodeFieldCount;
+      const nodeOrdinal = nodesToVisit[--nodesToVisitLength];
+      const beginEdgeIndex = firstEdgeIndexes[nodeOrdinal];
+      const endEdgeIndex = firstEdgeIndexes[nodeOrdinal + 1];
+      for (let edgeIndex = beginEdgeIndex; edgeIndex < endEdgeIndex; edgeIndex += edgeFieldsCount) {
+        const childNodeIndex = containmentEdges[edgeIndex + edgeToNodeOffset];
+        const childNodeOrdinal = childNodeIndex / nodeFieldCount;
         if (flags[childNodeOrdinal] & pageObjectFlag)
           continue;
-        var type = containmentEdges[edgeIndex + edgeTypeOffset];
+        const type = containmentEdges[edgeIndex + edgeTypeOffset];
         if (type === edgeWeakType)
           continue;
         nodesToVisit[nodesToVisitLength++] = childNodeOrdinal;
@@ -369,30 +344,30 @@ WebInspector.JSHeapSnapshot = class extends WebInspector.HeapSnapshot {
    * @override
    */
   calculateStatistics() {
-    var nodeFieldCount = this._nodeFieldCount;
-    var nodes = this.nodes;
-    var nodesLength = nodes.length;
-    var nodeTypeOffset = this._nodeTypeOffset;
-    var nodeSizeOffset = this._nodeSelfSizeOffset;
-    var nodeNativeType = this._nodeNativeType;
-    var nodeCodeType = this._nodeCodeType;
-    var nodeConsStringType = this._nodeConsStringType;
-    var nodeSlicedStringType = this._nodeSlicedStringType;
-    var distances = this._nodeDistances;
-    var sizeNative = 0;
-    var sizeCode = 0;
-    var sizeStrings = 0;
-    var sizeJSArrays = 0;
-    var sizeSystem = 0;
-    var node = this.rootNode();
-    for (var nodeIndex = 0; nodeIndex < nodesLength; nodeIndex += nodeFieldCount) {
-      var nodeSize = nodes[nodeIndex + nodeSizeOffset];
-      var ordinal = nodeIndex / nodeFieldCount;
+    const nodeFieldCount = this._nodeFieldCount;
+    const nodes = this.nodes;
+    const nodesLength = nodes.length;
+    const nodeTypeOffset = this._nodeTypeOffset;
+    const nodeSizeOffset = this._nodeSelfSizeOffset;
+    const nodeNativeType = this._nodeNativeType;
+    const nodeCodeType = this._nodeCodeType;
+    const nodeConsStringType = this._nodeConsStringType;
+    const nodeSlicedStringType = this._nodeSlicedStringType;
+    const distances = this._nodeDistances;
+    let sizeNative = 0;
+    let sizeCode = 0;
+    let sizeStrings = 0;
+    let sizeJSArrays = 0;
+    let sizeSystem = 0;
+    const node = this.rootNode();
+    for (let nodeIndex = 0; nodeIndex < nodesLength; nodeIndex += nodeFieldCount) {
+      const nodeSize = nodes[nodeIndex + nodeSizeOffset];
+      const ordinal = nodeIndex / nodeFieldCount;
       if (distances[ordinal] >= WebInspector.HeapSnapshotCommon.baseSystemDistance) {
         sizeSystem += nodeSize;
         continue;
       }
-      var nodeType = nodes[nodeIndex + nodeTypeOffset];
+      const nodeType = nodes[nodeIndex + nodeTypeOffset];
       node.nodeIndex = nodeIndex;
       if (nodeType === nodeNativeType)
         sizeNative += nodeSize;
@@ -418,24 +393,24 @@ WebInspector.JSHeapSnapshot = class extends WebInspector.HeapSnapshot {
    * @return {number}
    */
   _calculateArraySize(node) {
-    var size = node.selfSize();
-    var beginEdgeIndex = node.edgeIndexesStart();
-    var endEdgeIndex = node.edgeIndexesEnd();
-    var containmentEdges = this.containmentEdges;
-    var strings = this.strings;
-    var edgeToNodeOffset = this._edgeToNodeOffset;
-    var edgeTypeOffset = this._edgeTypeOffset;
-    var edgeNameOffset = this._edgeNameOffset;
-    var edgeFieldsCount = this._edgeFieldsCount;
-    var edgeInternalType = this._edgeInternalType;
-    for (var edgeIndex = beginEdgeIndex; edgeIndex < endEdgeIndex; edgeIndex += edgeFieldsCount) {
-      var edgeType = containmentEdges[edgeIndex + edgeTypeOffset];
+    let size = node.selfSize();
+    const beginEdgeIndex = node.edgeIndexesStart();
+    const endEdgeIndex = node.edgeIndexesEnd();
+    const containmentEdges = this.containmentEdges;
+    const strings = this.strings;
+    const edgeToNodeOffset = this._edgeToNodeOffset;
+    const edgeTypeOffset = this._edgeTypeOffset;
+    const edgeNameOffset = this._edgeNameOffset;
+    const edgeFieldsCount = this._edgeFieldsCount;
+    const edgeInternalType = this._edgeInternalType;
+    for (let edgeIndex = beginEdgeIndex; edgeIndex < endEdgeIndex; edgeIndex += edgeFieldsCount) {
+      const edgeType = containmentEdges[edgeIndex + edgeTypeOffset];
       if (edgeType !== edgeInternalType)
         continue;
-      var edgeName = strings[containmentEdges[edgeIndex + edgeNameOffset]];
+      const edgeName = strings[containmentEdges[edgeIndex + edgeNameOffset]];
       if (edgeName !== 'elements')
         continue;
-      var elementsNodeIndex = containmentEdges[edgeIndex + edgeToNodeOffset];
+      const elementsNodeIndex = containmentEdges[edgeIndex + edgeToNodeOffset];
       node.nodeIndex = elementsNodeIndex;
       if (node.retainersCount() === 1)
         size += node.selfSize();
@@ -468,7 +443,7 @@ WebInspector.JSHeapSnapshotNode = class extends WebInspector.HeapSnapshotNode {
    * @return {boolean}
    */
   canBeQueried() {
-    var flags = this._snapshot._flagsOfNode(this);
+    const flags = this._snapshot._flagsOfNode(this);
     return !!(flags & this._snapshot._nodeFlags.canBeQueried);
   }
 
@@ -484,9 +459,9 @@ WebInspector.JSHeapSnapshotNode = class extends WebInspector.HeapSnapshotNode {
    * @return {string}
    */
   name() {
-    var snapshot = this._snapshot;
+    const snapshot = this._snapshot;
     if (this.rawType() === snapshot._nodeConsStringType) {
-      var string = snapshot._lazyStringCache[this.nodeIndex];
+      let string = snapshot._lazyStringCache[this.nodeIndex];
       if (typeof string === 'undefined') {
         string = this._consStringName();
         snapshot._lazyStringCache[this.nodeIndex] = string;
@@ -500,40 +475,40 @@ WebInspector.JSHeapSnapshotNode = class extends WebInspector.HeapSnapshotNode {
    * @return {string}
    */
   _consStringName() {
-    var snapshot = this._snapshot;
-    var consStringType = snapshot._nodeConsStringType;
-    var edgeInternalType = snapshot._edgeInternalType;
-    var edgeFieldsCount = snapshot._edgeFieldsCount;
-    var edgeToNodeOffset = snapshot._edgeToNodeOffset;
-    var edgeTypeOffset = snapshot._edgeTypeOffset;
-    var edgeNameOffset = snapshot._edgeNameOffset;
-    var strings = snapshot.strings;
-    var edges = snapshot.containmentEdges;
-    var firstEdgeIndexes = snapshot._firstEdgeIndexes;
-    var nodeFieldCount = snapshot._nodeFieldCount;
-    var nodeTypeOffset = snapshot._nodeTypeOffset;
-    var nodeNameOffset = snapshot._nodeNameOffset;
-    var nodes = snapshot.nodes;
-    var nodesStack = [];
+    const snapshot = this._snapshot;
+    const consStringType = snapshot._nodeConsStringType;
+    const edgeInternalType = snapshot._edgeInternalType;
+    const edgeFieldsCount = snapshot._edgeFieldsCount;
+    const edgeToNodeOffset = snapshot._edgeToNodeOffset;
+    const edgeTypeOffset = snapshot._edgeTypeOffset;
+    const edgeNameOffset = snapshot._edgeNameOffset;
+    const strings = snapshot.strings;
+    const edges = snapshot.containmentEdges;
+    const firstEdgeIndexes = snapshot._firstEdgeIndexes;
+    const nodeFieldCount = snapshot._nodeFieldCount;
+    const nodeTypeOffset = snapshot._nodeTypeOffset;
+    const nodeNameOffset = snapshot._nodeNameOffset;
+    const nodes = snapshot.nodes;
+    const nodesStack = [];
     nodesStack.push(this.nodeIndex);
-    var name = '';
+    let name = '';
 
     while (nodesStack.length && name.length < 1024) {
-      var nodeIndex = nodesStack.pop();
+      const nodeIndex = nodesStack.pop();
       if (nodes[nodeIndex + nodeTypeOffset] !== consStringType) {
         name += strings[nodes[nodeIndex + nodeNameOffset]];
         continue;
       }
-      var nodeOrdinal = nodeIndex / nodeFieldCount;
-      var beginEdgeIndex = firstEdgeIndexes[nodeOrdinal];
-      var endEdgeIndex = firstEdgeIndexes[nodeOrdinal + 1];
-      var firstNodeIndex = 0;
-      var secondNodeIndex = 0;
-      for (var edgeIndex = beginEdgeIndex; edgeIndex < endEdgeIndex && (!firstNodeIndex || !secondNodeIndex);
+      const nodeOrdinal = nodeIndex / nodeFieldCount;
+      const beginEdgeIndex = firstEdgeIndexes[nodeOrdinal];
+      const endEdgeIndex = firstEdgeIndexes[nodeOrdinal + 1];
+      let firstNodeIndex = 0;
+      let secondNodeIndex = 0;
+      for (let edgeIndex = beginEdgeIndex; edgeIndex < endEdgeIndex && (!firstNodeIndex || !secondNodeIndex);
            edgeIndex += edgeFieldsCount) {
-        var edgeType = edges[edgeIndex + edgeTypeOffset];
+        const edgeType = edges[edgeIndex + edgeTypeOffset];
         if (edgeType === edgeInternalType) {
-          var edgeName = strings[edges[edgeIndex + edgeNameOffset]];
+          const edgeName = strings[edges[edgeIndex + edgeNameOffset]];
           if (edgeName === 'first')
             firstNodeIndex = edges[edgeIndex + edgeToNodeOffset];
           else if (edgeName === 'second')
@@ -551,7 +526,7 @@ WebInspector.JSHeapSnapshotNode = class extends WebInspector.HeapSnapshotNode {
    * @return {string}
    */
   className() {
-    var type = this.type();
+    const type = this.type();
     switch (type) {
       case 'hidden':
         return '(system)';
@@ -570,9 +545,9 @@ WebInspector.JSHeapSnapshotNode = class extends WebInspector.HeapSnapshotNode {
    * @return {number}
    */
   classIndex() {
-    var snapshot = this._snapshot;
-    var nodes = snapshot.nodes;
-    var type = nodes[this.nodeIndex + snapshot._nodeTypeOffset];
+    const snapshot = this._snapshot;
+    const nodes = snapshot.nodes;
+    const type = nodes[this.nodeIndex + snapshot._nodeTypeOffset];
     if (type === snapshot._nodeObjectType || type === snapshot._nodeNativeType)
       return nodes[this.nodeIndex + snapshot._nodeNameOffset];
     return -1 - type;
@@ -583,7 +558,7 @@ WebInspector.JSHeapSnapshotNode = class extends WebInspector.HeapSnapshotNode {
    * @return {number}
    */
   id() {
-    var snapshot = this._snapshot;
+    const snapshot = this._snapshot;
     return snapshot.nodes[this.nodeIndex + snapshot._nodeIdOffset];
   }
 
@@ -627,8 +602,8 @@ WebInspector.JSHeapSnapshotNode = class extends WebInspector.HeapSnapshotNode {
    * @return {!WebInspector.HeapSnapshotCommon.Node}
    */
   serialize() {
-    var result = super.serialize();
-    var flags = this._snapshot._flagsOfNode(this);
+    const result = super.serialize();
+    const flags = this._snapshot._flagsOfNode(this);
     if (flags & this._snapshot._nodeFlags.canBeQueried)
       result.canBeQueried = true;
     if (flags & this._snapshot._nodeFlags.detachedDOMTreeNode)
@@ -654,7 +629,7 @@ WebInspector.JSHeapSnapshotEdge = class extends WebInspector.HeapSnapshotEdge {
    * @return {!WebInspector.JSHeapSnapshotEdge}
    */
   clone() {
-    var snapshot = /** @type {!WebInspector.JSHeapSnapshot} */ (this._snapshot);
+    const snapshot = /** @type {!WebInspector.JSHeapSnapshot} */ (this._snapshot);
     return new WebInspector.JSHeapSnapshotEdge(snapshot, this.edgeIndex);
   }
 
@@ -715,10 +690,10 @@ WebInspector.JSHeapSnapshotEdge = class extends WebInspector.HeapSnapshotEdge {
    * @return {string}
    */
   name() {
-    var name = this._name();
+    const name = this._name();
     if (!this.isShortcut())
       return String(name);
-    var numName = parseInt(name, 10);
+    const numName = parseInt(name, 10);
     return String(isNaN(numName) ? name : numName);
   }
 
@@ -727,7 +702,7 @@ WebInspector.JSHeapSnapshotEdge = class extends WebInspector.HeapSnapshotEdge {
    * @return {string}
    */
   toString() {
-    var name = this.name();
+    const name = this.name();
     switch (this.type()) {
       case 'context':
         return '->' + name;
@@ -754,8 +729,8 @@ WebInspector.JSHeapSnapshotEdge = class extends WebInspector.HeapSnapshotEdge {
    * @return {boolean}
    */
   _hasStringName() {
-    var type = this.rawType();
-    var snapshot = this._snapshot;
+    const type = this.rawType();
+    const snapshot = this._snapshot;
     return type !== snapshot._edgeElementType && type !== snapshot._edgeHiddenType;
   }
 
@@ -799,7 +774,7 @@ WebInspector.JSHeapSnapshotRetainerEdge = class extends WebInspector.HeapSnapsho
    * @return {!WebInspector.JSHeapSnapshotRetainerEdge}
    */
   clone() {
-    var snapshot = /** @type {!WebInspector.JSHeapSnapshot} */ (this._snapshot);
+    const snapshot = /** @type {!WebInspector.JSHeapSnapshot} */ (this._snapshot);
     return new WebInspector.JSHeapSnapshotRetainerEdge(snapshot, this.retainerIndex());
   }
 

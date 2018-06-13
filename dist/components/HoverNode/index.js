@@ -10,7 +10,8 @@ function nodeToStats(node) {
         id: i,
         type: t,
         retainedSize: filesize(v),
-        selfSize: filesize(s)
+        selfSize: filesize(s),
+        distance: d
     };
 }
 exports.HoverNode = ({ node }) => {
